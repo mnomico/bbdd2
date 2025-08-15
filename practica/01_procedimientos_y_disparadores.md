@@ -14,7 +14,7 @@ DETALLE(NRO,ID,CANTIDAD,PRECIO)
 PRODUCTO(ID,DESCR,STOCK)
 ```
 
-### Implementación en DDL:
+### Implementación en DDL
 
 ```
 CREATE TABLE FACTURA
@@ -44,36 +44,129 @@ CREATE TABLE DETALLE
 
 - Agregue la columna PRECIO_BASE a tabla producto (use el mismo tipo de dato que DETALLE.PRECIO), para guardar allí el precio de referencia del producto.
 
-```
-ALTER TABLE PRODUCTO
-ADD PRECIO_BASE DOUBLE PRECISION NOT NULL;
-```
+    ```
+    ALTER TABLE PRODUCTO
+    ADD PRECIO_BASE DOUBLE PRECISION NOT NULL;
+    ```
 
 - Agregue la columna PRECIO_COSTO a tabla producto (use el mismo tipo de dato que DETALLE.PRECIO), para guardar allí el precio de costo del producto.
 
-```
-ALTER TABLE PRODUCTO
-ADD PRECIO_COSTO DOUBLE PRECISION NOT NULL;
-```
+    ```
+    ALTER TABLE PRODUCTO
+    ADD PRECIO_COSTO DOUBLE PRECISION NOT NULL;
+    ```
 
 - Agregue la columna ESTADO a tabla factura (tipo SMALLINT), la cual indica el estado de la factura (0
 iniciada, 1 finalizada, 2 anulada).
 
-```
-ALTER TABLE FACTURA
-ADD ESTADO SMALLINT CHECK (ESTADO BETWEEN 0 AND 2);
-```
+    ```
+    ALTER TABLE FACTURA
+    ADD ESTADO SMALLINT CHECK (ESTADO BETWEEN 0 AND 2);
+    ```
 
 - Agregue la columna FECHA a tabla factura (tipo DATE), la cual indica la fecha de la factura.
 
-```
-ALTER TABLE FACTURA
-ADD FECHA DATE NOT NULL;
-```
+    ```
+    ALTER TABLE FACTURA
+    ADD FECHA DATE NOT NULL;
+    ```
 
 En un esquema de implementación B (el usuario/aplicaciones NO interactúa directamente con las tablas), resuelva (agregue los campos o tablas que considere necesarios):
 
 1. Cada vez que se vende un producto, se descuenta su cantidad de stock (cada vez que deja de vender un producto, sume su cantidad al stock). Un producto no puede venderse si el stock no es suficiente.
+
+    ### Trigger BIDETALLE
+
+    Este trigger verifica si la cantidad que se desea insertar en la tabla DETALLE es válida.
+
+    Si el stock del producto es menor a la cantidad a insertar, genera una excepción.
+
+    ```
+    CREATE EXCEPTION EX_STOCK_INSUFICIENTE 'No hay stock suficiente para la cantidad deseada.';
+
+    SET TERM ^ ;
+
+    CREATE TRIGGER TRG_BIDETALLE FOR DETALLE
+    ACTIVE BEFORE INSERT POSITION 0
+    AS
+        DECLARE VARIABLE STOCK_DISPONIBLE TYPE OF COLUMN PRODUCTO.STOCK;
+    BEGIN
+        SELECT STOCK FROM PRODUCTO WHERE ID = NEW.ID
+        INTO :STOCK_DISPONIBLE;
+        IF(:STOCK_DISPONIBLE - NEW.CANTIDAD < 0) THEN
+            EXCEPTION EX_STOCK_INSUFICIENTE;
+    END^
+
+    SET TERM ; ^
+    ```
+
+    ### Trigger AIDETALLE
+
+    Este trigger se dispara si el trigger anterior no arroja una excepción, es decir que la cantidad de producto a insertar en la tabla DETALLE es válida.
+
+    Creo un stored procedure DESCONTAR_STOCK, porque luego se va a utilizar para otros triggers.
+
+    Lo que hace el procedure es descontar del stock del producto la cantidad pasada por parámetro (en este trigger, sería la cantidad insertada en la tupla de DETALLE).
+
+    ```
+    SET TERM ^ ;
+
+    CREATE PROCEDURE DESCONTAR_STOCK(
+        ID TYPE OF COLUMN PRODUCTO.ID,
+        CANTIDAD TYPE OF COLUMN DETALLE.CANTIDAD
+    )
+    AS
+    BEGIN
+        UPDATE PRODUCTO SET STOCK = STOCK - :CANTIDAD WHERE ID = :ID;
+    END^
+
+    SET TERM ; ^
+
+    SET TERM ^ ;
+
+    CREATE TRIGGER TRG_AIDETALLE FOR DETALLE
+    ACTIVE AFTER INSERT POSITION 0
+    AS
+    BEGIN
+        EXECUTE PROCEDURE DESCONTAR_STOCK(NEW.ID, NEW.CANTIDAD);
+    END^
+
+    SET TERM ; ^
+    ```
+
+    ### Trigger ADDETALLE
+
+    Este trigger se dispara cuando se elimina una tupla de DETALLE. 
+
+    En este caso también creo un stored procedure REPONER_STOCK, que se va a volver a usar más adelante.
+
+    Lo que hace el procedure REPONER_STOCK es sumar la cantidad pasada por parámetro (en este trigger sería la cantidad de la tupla eliminada en DETALLE) al stock del producto.
+
+    ```
+    SET TERM ^ ;
+
+    CREATE PROCEDURE REPONER_STOCK(
+        ID TYPE OF COLUMN PRODUCTO.ID,
+        CANTIDAD TYPE OF COLUMN DETALLE.CANTIDAD
+    )
+    AS
+    BEGIN
+        UPDATE PRODUCTO SET STOCK = STOCK + :CANTIDAD WHERE ID = :ID;
+    END^
+
+    SET TERM ; ^
+
+    SET TERM ^ ;
+
+    CREATE TRIGGER TRG_ADDETALLE FOR DETALLE
+    ACTIVE AFTER DELETE POSITION 0
+    AS
+    BEGIN
+        EXECUTE PROCEDURE REPONER_STOCK(OLD.ID, OLD.CANTIDAD);
+    END^
+
+    SET TERM ; ^
+    ```
 
 2. El importe de la factura es igual a la sumatoria de cantidad * precio; actualice el importe de la factura a medida que vende o deja de vender productos.
 
