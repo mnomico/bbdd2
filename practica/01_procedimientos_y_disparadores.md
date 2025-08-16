@@ -100,37 +100,69 @@ En un esquema de implementación B (el usuario/aplicaciones NO interactúa direc
     SET TERM ; ^
     ```
 
-    ### Trigger AIDETALLE
+    ### Procedure AGREGAR_PRODUCTO_DETALLE
 
-    Este trigger se dispara si el trigger anterior no arroja una excepción, es decir que la cantidad de producto a insertar en la tabla DETALLE es válida.
+    Creo un stored procedure AGREGAR_PRODUCTO_DETALLE, porque luego se va a utilizar para otros triggers.
 
-    Creo un stored procedure DESCONTAR_STOCK, porque luego se va a utilizar para otros triggers.
-
-    Lo que hace el procedure es descontar del stock del producto la cantidad pasada por parámetro (en este trigger, sería la cantidad insertada en la tupla de DETALLE).
+    Lo que hace el procedure es descontar del stock del producto la cantidad insertada en la tupla de DETALLE.
 
     ```
     SET TERM ^ ;
-
-    CREATE PROCEDURE DESCONTAR_STOCK(
-        ID TYPE OF COLUMN PRODUCTO.ID,
+    CREATE PROCEDURE AGREGAR_PRODUCTO_DETALLE
+    (
+        NRO TYPE OF COLUMN DETALLE.NRO,
+        ID TYPE OF COLUMN DETALLE.ID,
         CANTIDAD TYPE OF COLUMN DETALLE.CANTIDAD
     )
     AS
+        DECLARE VARIABLE PRECIO_BASE TYPE OF COLUMN PRODUCTO.PRECIO_BASE;
+        DECLARE VARIABLE PRECIO TYPE OF COLUMN DETALLE.PRECIO;
     BEGIN
         UPDATE PRODUCTO SET STOCK = STOCK - :CANTIDAD WHERE ID = :ID;
-    END^
-
+        SELECT PRECIO_BASE FROM PRODUCTO WHERE ID = :ID INTO :PRECIO_BASE;
+        :PRECIO = :PRECIO_BASE * :CANTIDAD;
+        UPDATE DETALLE SET PRECIO = :PRECIO WHERE NRO = :NRO AND ID = :ID;
+        UPDATE FACTURA SET IMPORTE = IMPORTE + :PRECIO WHERE NRO = :NRO;
+    END ^
     SET TERM ; ^
+    ```
 
+    ### Trigger AIDETALLE
+
+    Este trigger se dispara si el trigger BIDETALLE no arroja una excepción, es decir que la cantidad de producto a insertar en la tabla DETALLE es válida.
+
+    ```
     SET TERM ^ ;
-
     CREATE TRIGGER TRG_AIDETALLE FOR DETALLE
-    ACTIVE AFTER INSERT POSITION 0
+    ACTIVE AFTER insert POSITION 0
     AS
     BEGIN
-        EXECUTE PROCEDURE DESCONTAR_STOCK(NEW.ID, NEW.CANTIDAD);
+        EXECUTE PROCEDURE AGREGAR_PRODUCTO_DETALLE(NEW.NRO, NEW.ID, NEW.CANTIDAD);
     END^
+    SET TERM ; ^
+    ```
 
+    ### Procedure ELIMINAR_PRODUCTO_DETALLE
+
+    En este caso también creo un stored procedure ELIMINAR_PRODUCTO_DETALLE, que se va a volver a usar más adelante.
+
+    Lo que hace el procedure ELIMINAR_PRODUCTO_DETALLE es sumar la cantidad de la tupla eliminada en DETALLE al stock del producto.
+
+    ```
+    SET TERM ^ ;
+    CREATE PROCEDURE ELIMINAR_PRODUCTO_DETALLE
+    (
+        NRO TYPE OF COLUMN DETALLE.NRO,
+        ID TYPE OF COLUMN DETALLE.ID,
+        CANTIDAD TYPE OF COLUMN DETALLE.CANTIDAD
+    )
+    AS
+    DECLARE VARIABLE PRECIO_BASE TYPE OF COLUMN PRODUCTO.PRECIO_BASE;
+    BEGIN
+        UPDATE PRODUCTO SET STOCK = STOCK + :CANTIDAD WHERE ID = :ID;
+        SELECT PRECIO_BASE FROM PRODUCTO WHERE ID = :ID INTO :PRECIO_BASE;
+        UPDATE FACTURA SET IMPORTE = IMPORTE - (:PRECIO_BASE * :CANTIDAD) WHERE NRO = :NRO;
+    END^
     SET TERM ; ^
     ```
 
@@ -138,33 +170,14 @@ En un esquema de implementación B (el usuario/aplicaciones NO interactúa direc
 
     Este trigger se dispara cuando se elimina una tupla de DETALLE. 
 
-    En este caso también creo un stored procedure REPONER_STOCK, que se va a volver a usar más adelante.
-
-    Lo que hace el procedure REPONER_STOCK es sumar la cantidad pasada por parámetro (en este trigger sería la cantidad de la tupla eliminada en DETALLE) al stock del producto.
-
     ```
     SET TERM ^ ;
-
-    CREATE PROCEDURE REPONER_STOCK(
-        ID TYPE OF COLUMN PRODUCTO.ID,
-        CANTIDAD TYPE OF COLUMN DETALLE.CANTIDAD
-    )
+    CREATE TRIGGER TRG_ADDETALLE FOR DETALLE 
+    ACTIVE AFTER delete POSITION 0
     AS
     BEGIN
-        UPDATE PRODUCTO SET STOCK = STOCK + :CANTIDAD WHERE ID = :ID;
-    END^
-
-    SET TERM ; ^
-
-    SET TERM ^ ;
-
-    CREATE TRIGGER TRG_ADDETALLE FOR DETALLE
-    ACTIVE AFTER DELETE POSITION 0
-    AS
-    BEGIN
-        EXECUTE PROCEDURE REPONER_STOCK(OLD.ID, OLD.CANTIDAD);
-    END^
-
+        EXECUTE PROCEDURE ELIMINAR_PRODUCTO_DETALLE(OLD.NRO, OLD.ID, OLD.CANTIDAD);
+    END ^
     SET TERM ; ^
     ```
 
