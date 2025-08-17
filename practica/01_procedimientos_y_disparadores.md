@@ -42,21 +42,21 @@ CREATE TABLE DETALLE
 );
 ```
 
-- Agregue la columna PRECIO_BASE a tabla producto (use el mismo tipo de dato que DETALLE.PRECIO), para guardar allí el precio de referencia del producto.
+- Agregue la columna ```PRECIO_BASE``` a tabla producto (use el mismo tipo de dato que ```DETALLE.PRECIO```), para guardar allí el precio de referencia del producto.
 
     ```
     ALTER TABLE PRODUCTO
     ADD PRECIO_BASE DOUBLE PRECISION NOT NULL;
     ```
 
-- Agregue la columna PRECIO_COSTO a tabla producto (use el mismo tipo de dato que DETALLE.PRECIO), para guardar allí el precio de costo del producto.
+- Agregue la columna ```PRECIO_COSTO``` a tabla ```PRODUCTO``` (use el mismo tipo de dato que ```DETALLE.PRECIO```), para guardar allí el precio de costo del producto.
 
     ```
     ALTER TABLE PRODUCTO
     ADD PRECIO_COSTO DOUBLE PRECISION NOT NULL;
     ```
 
-- Agregue la columna ESTADO a tabla factura (tipo SMALLINT), la cual indica el estado de la factura (0
+- Agregue la columna ```ESTADO``` a tabla ```FACTURA``` (tipo ```SMALLINT```), la cual indica el estado de la factura (0
 iniciada, 1 finalizada, 2 anulada).
 
     ```
@@ -64,7 +64,7 @@ iniciada, 1 finalizada, 2 anulada).
     ADD ESTADO SMALLINT CHECK (ESTADO BETWEEN 0 AND 2);
     ```
 
-- Agregue la columna FECHA a tabla factura (tipo DATE), la cual indica la fecha de la factura.
+- Agregue la columna ```FECHA``` a tabla ```FACTURA``` (tipo ```DATE```), la cual indica la fecha de la factura.
 
     ```
     ALTER TABLE FACTURA
@@ -77,7 +77,7 @@ En un esquema de implementación B (el usuario/aplicaciones NO interactúa direc
 
     ### Trigger BIDETALLE
 
-    Este trigger verifica si la cantidad que se desea insertar en la tabla DETALLE es válida.
+    Este trigger verifica si la cantidad que se desea insertar en la tabla ```DETALLE``` es válida.
 
     Si el stock del producto es menor a la cantidad a insertar, genera una excepción.
 
@@ -102,9 +102,9 @@ En un esquema de implementación B (el usuario/aplicaciones NO interactúa direc
 
     ### Procedure AGREGAR_PRODUCTO_DETALLE
 
-    Creo un stored procedure AGREGAR_PRODUCTO_DETALLE, porque luego se va a utilizar para otros triggers.
+    Creo un stored procedure ```AGREGAR_PRODUCTO_DETALLE```, porque luego se va a utilizar para otros triggers.
 
-    Lo que hace el procedure es descontar del stock del producto la cantidad insertada en la tupla de DETALLE.
+    Lo que hace el procedure es descontar del stock del producto la cantidad insertada en la tupla de ```DETALLE``` y actualizar el importe de ```FACTURA```.
 
     ```
     SET TERM ^ ;
@@ -112,24 +112,20 @@ En un esquema de implementación B (el usuario/aplicaciones NO interactúa direc
     (
         NRO TYPE OF COLUMN DETALLE.NRO,
         ID TYPE OF COLUMN DETALLE.ID,
-        CANTIDAD TYPE OF COLUMN DETALLE.CANTIDAD
+        CANTIDAD TYPE OF COLUMN DETALLE.CANTIDAD,
+        PRECIO TYPE OF COLUMN DETALLE.PRECIO
     )
     AS
-        DECLARE VARIABLE PRECIO_BASE TYPE OF COLUMN PRODUCTO.PRECIO_BASE;
-        DECLARE VARIABLE PRECIO TYPE OF COLUMN DETALLE.PRECIO;
     BEGIN
         UPDATE PRODUCTO SET STOCK = STOCK - :CANTIDAD WHERE ID = :ID;
-        SELECT PRECIO_BASE FROM PRODUCTO WHERE ID = :ID INTO :PRECIO_BASE;
-        :PRECIO = :PRECIO_BASE * :CANTIDAD;
-        UPDATE DETALLE SET PRECIO = :PRECIO WHERE NRO = :NRO AND ID = :ID;
-        UPDATE FACTURA SET IMPORTE = IMPORTE + :PRECIO WHERE NRO = :NRO;
+        UPDATE FACTURA SET IMPORTE = IMPORTE + (:PRECIO * :CANTIDAD) WHERE NRO = :NRO;
     END ^
     SET TERM ; ^
     ```
 
     ### Trigger AIDETALLE
 
-    Este trigger se dispara si el trigger BIDETALLE no arroja una excepción, es decir que la cantidad de producto a insertar en la tabla DETALLE es válida.
+    Este trigger se dispara si el trigger ```BIDETALLE``` no arroja una excepción, es decir que la cantidad de producto a insertar en la tabla ```DETALLE``` es válida.
 
     ```
     SET TERM ^ ;
@@ -137,16 +133,16 @@ En un esquema de implementación B (el usuario/aplicaciones NO interactúa direc
     ACTIVE AFTER insert POSITION 0
     AS
     BEGIN
-        EXECUTE PROCEDURE AGREGAR_PRODUCTO_DETALLE(NEW.NRO, NEW.ID, NEW.CANTIDAD);
+        EXECUTE PROCEDURE AGREGAR_PRODUCTO_DETALLE(NEW.NRO, NEW.ID, NEW.CANTIDAD, NEW.PRECIO);
     END^
     SET TERM ; ^
     ```
 
     ### Procedure ELIMINAR_PRODUCTO_DETALLE
 
-    En este caso también creo un stored procedure ELIMINAR_PRODUCTO_DETALLE, que se va a volver a usar más adelante.
+    En este caso también creo un stored procedure ```ELIMINAR_PRODUCTO_DETALLE```, que se va a volver a usar más adelante.
 
-    Lo que hace el procedure ELIMINAR_PRODUCTO_DETALLE es sumar la cantidad de la tupla eliminada en DETALLE al stock del producto.
+    Lo que hace el procedure ```ELIMINAR_PRODUCTO_DETALLE``` es sumar la cantidad de la tupla eliminada en ```DETALLE``` al stock del producto y actualizar el importe de ```FACTURA```.
 
     ```
     SET TERM ^ ;
@@ -154,21 +150,20 @@ En un esquema de implementación B (el usuario/aplicaciones NO interactúa direc
     (
         NRO TYPE OF COLUMN DETALLE.NRO,
         ID TYPE OF COLUMN DETALLE.ID,
-        CANTIDAD TYPE OF COLUMN DETALLE.CANTIDAD
+        CANTIDAD TYPE OF COLUMN DETALLE.CANTIDAD,
+        PRECIO TYPE OF COLUMN DETALLE.PRECIO
     )
     AS
-    DECLARE VARIABLE PRECIO_BASE TYPE OF COLUMN PRODUCTO.PRECIO_BASE;
     BEGIN
         UPDATE PRODUCTO SET STOCK = STOCK + :CANTIDAD WHERE ID = :ID;
-        SELECT PRECIO_BASE FROM PRODUCTO WHERE ID = :ID INTO :PRECIO_BASE;
-        UPDATE FACTURA SET IMPORTE = IMPORTE - (:PRECIO_BASE * :CANTIDAD) WHERE NRO = :NRO;
+        UPDATE FACTURA SET IMPORTE = IMPORTE - (:PRECIO * :CANTIDAD) WHERE NRO = :NRO;
     END^
     SET TERM ; ^
     ```
 
     ### Trigger ADDETALLE
 
-    Este trigger se dispara cuando se elimina una tupla de DETALLE. 
+    Este trigger se dispara cuando se elimina una tupla de ```DETALLE```. 
 
     ```
     SET TERM ^ ;
@@ -176,14 +171,60 @@ En un esquema de implementación B (el usuario/aplicaciones NO interactúa direc
     ACTIVE AFTER delete POSITION 0
     AS
     BEGIN
-        EXECUTE PROCEDURE ELIMINAR_PRODUCTO_DETALLE(OLD.NRO, OLD.ID, OLD.CANTIDAD);
+        EXECUTE PROCEDURE ELIMINAR_PRODUCTO_DETALLE(OLD.NRO, OLD.ID, OLD.CANTIDAD, OLD.PRECIO);
     END ^
     SET TERM ; ^
     ```
 
 2. El importe de la factura es igual a la sumatoria de cantidad * precio; actualice el importe de la factura a medida que vende o deja de vender productos.
 
+    Esto se hace en los stored procedures ```AGREGAR_PRODUCTO_DETALLE``` y ```ELIMINAR_PRODUCTO_DETALLE```.
+
+    ### Trigger BIFACTURA
+
+    El trigger ```BIFACTURA``` setea por default la fecha de la factura al día actual, y al importe y al estado en 0. Si no se seteara el importe en 0, no funcionarian los stored procedres ```AGREGAR_PRODUCTO_DETALLE``` y ```ELIMINAR_PRODUCTO_DETALLE.```.
+
+    ```
+    SET TERM ^ ;
+    CREATE TRIGGER TRG_BIFACTURA FOR FACTURA 
+    ACTIVE BEFORE insert POSITION 0
+    AS
+    BEGIN
+        IF (NEW.FECHA IS NULL) THEN NEW.FECHA = 'TODAY';
+        NEW.IMPORTE = 0;
+        NEW.ESTADO = 0;
+    END ^
+    SET TERM ; ^
+    ```
+
 3. Un producto no puede venderse a un precio por debajo de su precio base.
+
+    ### ALTER Trigger BIDETALLE
+
+    Para controlar que no se venda un producto a un precio por debajo de su precio base, hay que modificar el trigger ```BIDETALLE```. Antes creo un exception que se dispara cuando se vende un producto a un precio menor. Además, en el trigger también agrego que cuando no se especifica el precio de venta se tome el valor de ```PRECIO_BASE``` en ```PRODUCTO```.
+
+    ```
+    CREATE EXCEPTION EX_PRECIO_INVALIDO 'El precio de venta de los productos no pueden ser menor al precio base del producto.';
+
+    SET TERM ^ ;
+    ALTER TRIGGER TRG_BIDETALLE 
+    ACTIVE BEFORE insert POSITION 0
+    AS
+        DECLARE VARIABLE PRECIO_BASE TYPE OF COLUMN PRODUCTO.PRECIO_BASE;
+        DECLARE VARIABLE STOCK_DISPONIBLE TYPE OF COLUMN PRODUCTO.STOCK;
+    BEGIN
+        SELECT PRECIO_BASE FROM PRODUCTO WHERE ID = NEW.ID INTO :PRECIO_BASE;
+        IF (NEW.PRECIO IS NULL) THEN
+            NEW.PRECIO = :PRECIO_BASE;
+        IF (NEW.PRECIO < :PRECIO_BASE) THEN
+            EXCEPTION EX_PRECIO_INVALIDO;
+        SELECT STOCK FROM PRODUCTO WHERE ID = NEW.ID
+        INTO :STOCK_DISPONIBLE;
+        IF(:STOCK_DISPONIBLE - NEW.CANTIDAD < 0) THEN
+            EXCEPTION EX_STOCK_INSUFICIENTE;
+    END ^
+    SET TERM ; ^
+    ```
 
 4. El estado de una factura comienza con estado 0 (iniciada).
 
