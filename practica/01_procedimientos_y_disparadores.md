@@ -240,6 +240,91 @@ En un esquema de implementación B (el usuario/aplicaciones NO interactúa direc
 
     Si una factura estaba en estado 2 anulada y pasa a estado 1 finalizada, se debe restar toda la cantidad de producto del stock.
 
+    ### Trigger BUFACTURA
+
+    Antes de implementar los triggers que controlan todo esto, creo una ```GTT``` (Global Temporary Table) la cual me va a servir para guardar los nuevos valores del stock de productos.
+
+    También creo el exception ```EX_ESTADOFACTURA_INVALIDO``` para que se arroje cuando se viola alguna de las reglas.
+
+    El trigger ```TRG_BUFACTURA``` valida dos cosas:
+    - Si el estado de la factura es diferente de 0 y se quiere actualizar a 0, tira error.
+    - Si se quiere cambiar el estado de la factura de anulada a finalizada, se debe verificar que haya stock suficiente para realizarla. Por cada tupla de producto que tenga producto disponible, se guarda en la GTT los valores del ID del producto y del nuevo stock para poder actualizarlos en el trigger ```TRG_AUFACTURA```.
+
+    ```
+    CREATE GLOBAL TEMPORARY TABLE GTT_UPDATE_STOCK(
+        ID INTEGER NOT NULL,
+        STOCK INTEGER
+    );
+
+    CREATE EXCEPTION EX_ESTADOFACTURA_INVALIDO 'No se puede cambiar la factura a estado iniciada una vez finalizada/anulada.';
+
+    SET TERM ^ ;
+    CREATE TRIGGER TRG_BUFACTURA FOR FACTURA
+    ACTIVE BEFORE UPDATE POSITION 0
+    AS
+        DECLARE VARIABLE V_ID TYPE OF COLUMN DETALLE.ID;
+        DECLARE VARIABLE V_CANTIDAD TYPE OF COLUMN DETALLE.CANTIDAD;
+        DECLARE VARIABLE V_STOCK TYPE OF COLUMN PRODUCTO.STOCK;
+    BEGIN
+        -- si el estado de factura es finalizada/anulada y se quiere cambiar a iniciada
+        IF ((OLD.ESTADO = 1 OR OLD.ESTADO = 2) AND (NEW.ESTADO = 0)) THEN
+            EXCEPTION EX_ESTADOFACTURA_INVALIDO;
+            
+        -- si se cambia el estado de anulada a finalizada, verifico si tengo la cantidad suficiente para la factura,
+        -- y guardo los nuevos valores del stock en una tabla temporal
+        IF (OLD.ESTADO = 2 AND NEW.ESTADO = 1) THEN
+            FOR
+                SELECT ID, CANTIDAD FROM DETALLE WHERE NRO = OLD.NRO
+                INTO :V_ID, :V_CANTIDAD
+            DO
+            BEGIN
+                SELECT STOCK FROM PRODUCTO WHERE ID = :V_ID
+                INTO :V_STOCK;
+                :V_STOCK = :V_STOCK - :V_CANTIDAD;
+                IF (:V_STOCK < 0) THEN
+                    EXCEPTION EX_STOCK_INSUFICIENTE;
+                ELSE
+                    INSERT INTO GTT_UPDATE_STOCK(ID, STOCK) VALUES(:V_ID, :V_STOCK);
+            END
+    END^
+    SET TERM ; ^
+    ```
+
+    ### Trigger AUFACTURA
+
+    En este trigger se realiza la actualización del stock de productos una vez que se actualiza el estado de la factura.
+
+    - Si el estado de la factura pasa de finalizada a anulada, la operación es simple: se suma al stock de productos la cantidad indicada en la factura.
+    - Si el estado de la factura pasa de anulada a finalizada, se actualiza el stock de los productos que figuran en la tabla factura con los valores contenidos en la GTT.
+
+    ```
+    SET TERM ^ ;
+    CREATE TRIGGER TRG_AUFACTURA FOR FACTURA
+    ACTIVE AFTER UPDATE POSITION 0
+    AS
+        DECLARE VARIABLE V_ID TYPE OF COLUMN PRODUCTO.ID;
+        DECLARE VARIABLE V_CANTIDAD TYPE OF COLUMN DETALLE.CANTIDAD;
+        DECLARE VARIABLE V_STOCK TYPE OF COLUMN PRODUCTO.STOCK;
+    BEGIN
+        -- si se cambia el estado de finalizada a anulada, devuelvo el stock de productos
+        IF (OLD.ESTADO = 1 AND NEW.ESTADO = 2) THEN
+            FOR
+                SELECT ID, CANTIDAD FROM DETALLE WHERE NRO = OLD.NRO
+                INTO :V_ID, :V_CANTIDAD
+            DO
+                UPDATE PRODUCTO SET STOCK = STOCK + :V_CANTIDAD WHERE ID = :V_ID;
+                
+        -- si se cambia el estado de anulada a finalizada, actualizo el stock con los valores de la tabla temporal
+        IF (OLD.ESTADO = 2 AND NEW.ESTADO = 1) THEN
+            FOR
+                SELECT ID, STOCK FROM GTT_UPDATE_STOCK
+                INTO :V_ID, :V_STOCK
+            DO
+                UPDATE PRODUCTO SET STOCK = :V_STOCK WHERE ID = :V_ID;
+    END^
+    SET TERM ; ^
+    ```
+
 5. Implemente, de forma genérica, para todas las facturas, el siguiente control: por ejemplo, si la factura 100 tiene fecha 02-SEP-14, entonces, la factura 101 deberá tener una fecha mayor igual al 02-SEP-14 y nunca menor.
 
 ### Implementación de Triggers:
