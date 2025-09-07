@@ -11,7 +11,9 @@
 
 #include "cliente1.h"
 
-int main()
+int crearSocket(const char *, int);
+
+int main(int argc, char **argv)
 {
     const char *hostname = HOSTNAME;
     const char *username = USERNAME;
@@ -20,8 +22,15 @@ int main()
     int localport = LOCALPORT;
     const char *remotehost = REMOTEHOST;
     int remoteport = REMOTEPORT;
+    int remoteportssh = REMOTEPORTSSH;
 
     // Configuración del socket origen y destino para la comunicación
+    int sock = crearSocket(remotehost, remoteport);
+
+} 
+
+int crearSocket(const char *remotehost, int remoteport)
+{
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in sin;
     sin.sin_family = AF_INET;
@@ -32,38 +41,6 @@ int main()
         printf("Error en connect()\n");
         return -1;
     } 
-    printf("connect() realizado con éxito\n");
-
-    // Iniciar la sesión con el socket definido para el origen
-    LIBSSH2_SESSION *session = libssh2_session_init();
-    if (libssh2_session_handshake(session, sock))
-    {
-        printf("Error en libssh2_session_init()\n");
-        return -1;
-    }
-    printf("libssh2_session_init() realizado con éxito\n");
-
-    // Autenticar la sesión SSH con usuario y contraseña para ingresar al sistema operativo.
-    if (libssh2_userauth_password(session, username, password))
-    {
-        printf("Error en libssh2_userauth_password()\n");
-        return -1;
-    }
-    printf("libssh2_userauth_password() realizado con éxito\n");
-
-    // Establecer la conexión TCP/IP mediante SSH
-    LIBSSH2_CHANNEL *channel = libssh2_channel_direct_tcpip_ex(session,
-                                                               remotehost,
-                                                               remoteport,
-                                                               localhost,
-                                                               localport);
-    
-    if (!channel)
-    {
-        printf("Error en libssh2_channel_direct_tcpip_ex()\n");
-        return -1;
-    }
-    printf("libssh2_channel_direct_tcpip_ex() realizado con éxito\n");
-
-    // TODO ejecutar el procedure en la base de datos
+    printf("connect() realizado con éxito\n" ); 
+    return sock;
 }
