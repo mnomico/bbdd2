@@ -1,7 +1,8 @@
 #define HOSTNAME ""
-#define USERNAME ""
-#define PASSWORD ""
+#define USERNAME "168102"
+#define PASSWORD "MundoCruel"
 #define LOCALHOST ""
-#define LOCALPORT 3125
-#define REMOTEHOST ""
+#define LOCALPORT 3056
+#define REMOTEHOST "10.101.0.12"
 #define REMOTEPORT 3306
+#define REMOTEPORTSSH 2244
