@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!DOCTYPE hibernate-configuration PUBLIC
+        "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
+        "http://hibernate.org/dtd/hibernate-configuration-3.0.dtd">
+
+<hibernate-configuration>
+    <session-factory>
+        <!-- Configuracion de sesion de la bd -->
+        <property name="hibernate.connection.driver_class">com.mysql.cj.jdbc.Driver</property>
+        <property name="hibernate.connection.url">jdbc:mysql://10.101.0.12:3306/ormPrueba12</property>
+        <property name="hibernate.connection.username">user12</property>
+        <property name="hibernate.connection.password">user12</property>
+        <property name="hibernate.connection.pool_size">5</property>
+
+        <!-- Hibernate behavior -->
+        <property name="hibernate.hbm2ddl.auto">update</property>
+        <property name="hibernate.show_sql">false</property>
+        <property name="hibernate.format_sql">true</property>
+        <property name="hibernate.highlight_sql">true</property>
+
+        <!-- Mapeo de clases -->
+        <mapping class="com.unluki.models.Articulo"/>
+    </session-factory>
+</hibernate-configuration>
