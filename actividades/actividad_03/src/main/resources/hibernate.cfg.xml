@@ -20,5 +20,6 @@
 
         <!-- Mapeo de clases -->
         <mapping class="com.unluki.models.Articulo"/>
+        <mapping class="com.unluki.models.Sucursal"/>
     </session-factory>
 </hibernate-configuration>
