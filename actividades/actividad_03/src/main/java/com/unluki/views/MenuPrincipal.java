@@ -17,7 +17,8 @@ public class MenuPrincipal {
         int opcion;
         do {
             System.out.println("\n--- MENÚ PRINCIPAL ---");
-            System.out.println("1. ABM y Consulta de Artículos");
+            System.out.println("1. Articulos - ABM y Consulta");
+            System.out.println("2. Sucursales - ABM y Consulta");
             System.out.println("0. Salir");
             System.out.print("Seleccione una opción: ");
 
