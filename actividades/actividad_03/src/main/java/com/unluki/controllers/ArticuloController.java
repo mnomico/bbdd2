@@ -4,9 +4,7 @@ import com.unluki.models.Articulo;
 import com.unluki.utils.HibernateUtil;
 import jakarta.persistence.*;
 import org.hibernate.*;
-import org.hibernate.cfg.Configuration;
 import org.hibernate.query.NativeQuery;
-
 import java.util.ArrayList;
 import java.util.List;
 

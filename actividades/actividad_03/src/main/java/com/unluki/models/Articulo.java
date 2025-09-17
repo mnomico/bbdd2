@@ -25,8 +25,7 @@ public class Articulo {
     @Column(name = "stock", nullable = false)
     private int stock;
 
-    public Articulo() {
-    }
+    public Articulo() {}
 
     public Articulo(int id_articulo, String descripcion, int stock) {
         this.id_articulo = id_articulo;
