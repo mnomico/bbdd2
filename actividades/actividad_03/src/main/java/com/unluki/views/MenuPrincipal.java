@@ -3,12 +3,14 @@ package com.unluki.views;
 import java.util.Scanner;
 
 public class MenuPrincipal {
-    private Scanner scanner;
-    private ArticuloView articuloView;
+    private final Scanner scanner;
+    private final ArticuloView articuloView;
+    private final SucursalView sucursalView;
 
     public MenuPrincipal() {
         this.scanner = new Scanner(System.in);
         this.articuloView = new ArticuloView();
+        this.sucursalView = new SucursalView();
     }
 
     public void mostrarMenu() {
@@ -23,6 +25,9 @@ public class MenuPrincipal {
             switch (opcion) {
                 case 1:
                     articuloView.mostrarMenu();
+                    break;
+                case 2:
+                    sucursalView.mostrarMenu();
                     break;
                 case 0:
                     System.out.println("Saliendo...");
