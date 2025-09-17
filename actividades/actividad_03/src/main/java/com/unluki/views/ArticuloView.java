@@ -7,8 +7,8 @@ import java.util.List;
 import java.util.Scanner;
 
 public class ArticuloView {
-    private Scanner scanner;
-    private ArticuloController articuloController;
+    private final Scanner scanner;
+    private final ArticuloController articuloController;
 
     public ArticuloView() {
         this.scanner = new Scanner(System.in);
