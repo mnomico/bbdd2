@@ -54,7 +54,7 @@ public class SucursalView {
         System.out.println("\n--- Agregar Sucursal ---");
         System.out.println("Descripcion: ");
         String descripcion = scanner.nextLine();
-        System.out.println("Stock: ");
+        System.out.println("Direccion: ");
         String direccion = scanner.nextLine();
         String result = sucursalController.createSucursal(0, descripcion, direccion);
         System.out.println(result);
